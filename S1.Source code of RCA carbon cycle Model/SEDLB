@@ -1,0 +1,129 @@
+C
+C            REAL, INTEGER AND COMMON CARDS FOR HQI SEDIMENT MODEL
+C                                                (RCA VERSION 3.0)
+C
+      real
+     *    DICT1TM1S
+      common /sedconc1/
+     *    DICT1TM1S(NX,NY)
+	  real
+     *    DICT2TM1S
+      common /sedconc1/
+     *    DICT2TM1S(NX,NY)
+	  real
+     *    TAT1TM1S
+      common /sedconc1/
+     *    TAT1TM1S(NX,NY)
+	  real
+     *    TAT2TM1S
+      common /sedconc1/
+     *    TAT2TM1S(NX,NY)
+	  real
+     *    DIC1TM1S
+      common /sedconc1/
+     *    DIC1TM1S(NX,NY)
+	  real
+     *    TA1TM1S
+      common /sedconc1/
+     *    TA1TM1S(NX,NY)
+
+	  real
+     *    dic0,dic1,dic2,jdicnh4,jdicno31,jdicno3,a1dic,jdic
+      common /conc1/
+     *    dic0,dic1,dic2,jdicnh4,jdicno31,jdicno3,a1dic,jdic
+	 real
+     *    cdic1,cdic2,cta1,cta2
+      common /conc1/
+     *    cdic1,cdic2,cta1,cta2
+	  real
+     *    ta0,ta1,ta2,jtanh4,jtano31,jtano3,a1ta,jtalk
+      common /conc1/
+     *    ta0,ta1,ta2,jtanh4,jtano31,jtano3,a1ta,jtalk
+	  real
+     *    dic2av,dict1,dict2,dict2av,dic1tm1,dict1tm1,dict2tm1
+      common /conc1/
+     *    dic2av,dict1,dict2,dict2av,dic1tm1,dict1tm1,dict2tm1
+	  real
+     *    ta2av,tat1,tat2,tat2av,ta1tm1,tat1tm1,tat2tm1
+      common /conc1/
+     *    ta2av,tat1,tat2,tat2av,ta1tm1,tat1tm1,tat2tm1
+	  real
+     *    NIDIC
+      common /sedconc1/
+     *    NIDIC(NX,NY,2)
+	  real
+     *    DNDIC
+      common /sedconc1/
+     *    DNDIC(NX,NY,2)
+	  real
+     *    SADIC
+      common /sedconc1/
+     *    SADIC(NX,NY,2)
+	  real
+     *    MEDIC
+      common /sedconc1/
+     *    MEDIC(NX,NY,2)
+	  real
+     *    SIDIC
+      common /sedconc1/
+     *    SIDIC(NX,NY,2)
+	  real
+     *    JCDIC
+      common /sedconc1/
+     *    JCDIC(NX,NY,2)
+	  real
+     *    J1DIC
+      common /sedconc1/
+     *    J1DIC(NX,NY,2)
+	  real
+     *    NITA
+      common /sedconc1/
+     *    NITA(NX,NY,2)
+	  real
+     *    DNTA
+      common /sedconc1/
+     *    DNTA(NX,NY,2)
+	  real
+     *    SATA
+      common /sedconc1/
+     *    SATA(NX,NY,2)
+	  real
+     *    META
+      common /sedconc1/
+     *    META(NX,NY,2)
+	  real
+     *    SITA
+      common /sedconc1/
+     *    SITA(NX,NY,2)
+	  real
+     *    JCTA
+      common /sedconc1/
+     *    JCTA(NX,NY,2)
+	  real
+     *    J1TA
+      common /sedconc1/
+     *    J1TA(NX,NY,2)
+	  real
+     *    CHDIC
+      common /sedconc1/
+     *    CHDIC(NX,NY,5)
+	  real
+     *    CHTA
+      common /sedconc1/
+     *    CHTA(NX,NY,2)
+	  real
+     *    DEW
+      common /sedconc1/
+     *    DEW(NX,NY)
+	  real
+     *    DE1
+      common /sedconc1/
+     *    DE1(NX,NY)
+	  real
+     *    FLXDICT2S(NX,NY)
+	  COMMON /SEDCONC1/
+     *    FLXDICT2S      , FLXDICT2
+	  real
+     *    FLXTAT2S(NX,NY)
+	  COMMON /SEDCONC1/
+     *    FLXTAT2S      , FLXTAT2

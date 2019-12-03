@@ -1,0 +1,732 @@
+      MODULE ALLOCRCAEXP
+       REAL, ALLOCATABLE :: FLXMB(:,:,:,:)
+       REAL, ALLOCATABLE :: FLYMB(:,:,:,:)
+      END MODULE ALLOCRCAEXP
+      SUBROUTINE RCAEXP
+      USE ALLOCRCAEXP
+C 
+C        RCAEXP IS THE MASTER ROUTINE USED TO INTEGRATE THE DIFFERENTIAL
+C               EQUATIONS OF THE WATER QUALITY MODEL.
+C               TIME DERIVATIVE: EXPLICIT - 1ST ORDER EULER
+C               SPACE DERIVATIVE: UPWIND
+C
+C************************************************************************
+C 
+      SAVE
+      INCLUDE 'RCACM' 
+      INTEGER  NEGSEG(99,3)
+      REAL   CONCS(NX,NY,0:NZ)
+     .      ,DM(NX,NY,NZ),BVOLN(NX,NY,NZ),TOTMAS
+     .      ,AL(NX,NY,NZ),AD(NX,NY,NZ),AU(NX,NY,NZ)
+     .      ,BETA(NX,NY,NZ),GAMMA(NX,NY,NZ)
+     .      ,MF(NX,NY,NZ)
+     .      ,SYSMASS(NOSYS+NOKINSYS),SYSLOADS(4,NOSYS)
+     .      ,ADDMASS(NX,NY,NZ,NOSYS)
+
+C        INITIALIZATION
+      INITB=0
+      ITRAK=1 
+      ITIMESECS=0
+      ITIMEWQSECS=0
+      TIME=0.0
+      NXPRTD=IPRNTDSECS
+      NXPRTG=IPRNTGSECS
+      INITMB=1
+      IWRTADDM=0
+      IADDMDEBUG=0
+      IF(MASSBAL.EQ.1) THEN
+        IF(ISMBSECS.EQ.0) THEN
+          NXPRTMB=0
+          INITMB=0
+        ELSE
+          NXPRTMB=ISMBSECS
+          INITMB=1
+        ENDIF
+      ENDIF
+      R=1.E-10
+      IF(TZERO.NE.0.)   THEN
+         CALL RCA08
+         ITIMESECS = 86400.*TZERO
+         ITIMEWQSECS = 86400.*TZERO
+         TIME = TZERO
+         NXPRTD = ITIMESECS+IPRNTDSECS
+         NXPRTG = ITIMESECS+IPRNTGSECS
+         IF(MASSBAL.EQ.1) THEN
+           IF(ITIMESECS.LT.ISMBSECS) THEN
+             NXPRTMB=ISMBSECS
+             INITMB=1
+           ELSE
+             NXPRTMB = ITIMESECS
+             INITMB=0
+           ENDIF
+         ENDIF
+      ENDIF
+C        INITIALIZE ARRAYS
+      DO 10 IZ=1,NZ
+       DO 10 IY=1,NY
+        DO 10 IX=1,NX
+          CONCS(IX,IY,IZ) = 0.0
+   10 CONTINUE
+      IF(MASSBAL.EQ.1) THEN
+       ALLOCATE(FLXMB(NX,NY,NZ,NOSYS+NOKINSYS),STAT=ISTAT)
+       ALLOCATE(FLYMB(NX,NY,NZ,NOSYS+NOKINSYS),STAT=ISTAT)
+       DO 12 ISYS=1,NOSYS+NOKINSYS
+        DO 12 IZ=1,NZ
+         DO 12 IY=1,NY
+          DO 12 IX=1,NX
+           FLXMB(IX,IY,IZ,ISYS)=0.
+           FLYMB(IX,IY,IZ,ISYS)=0.
+   12  CONTINUE
+       DO 14 ISYS=1,NOSYS
+        DO I=1,4
+          SYSLOADS(I,ISYS)=0.0
+        ENDDO
+   14  CONTINUE
+       IF(INITMB.EQ.0) THEN
+        DO 16 ISYS=1,NOSYS
+         SYSMASS(ISYS)=0.0
+         DO 16 IZ=1,NZ
+          DO 16 IY=1,NY
+           DO 16 IX=1,NX
+            IF(FSM(IX,IY).EQ.1.)  SYSMASS(ISYS) = SYSMASS(ISYS) +
+     .                            BVOL(IX,IY,IZ)*CARAY(IX,IY,IZ,ISYS)
+  16    CONTINUE
+        DO 17 ISYS=1,NOKINSYS
+         SYSMASS(NOSYS+ISYS)=0.0
+         DO 17 IZ=1,NZ
+          DO 17 IY=1,NY
+           DO 17 IX=1,NX
+            IF(FSM(IX,IY).EQ.1.)
+     .                 SYSMASS(NOSYS+ISYS) = SYSMASS(NOSYS+ISYS) +
+     .                 BVOL(IX,IY,IZ)*CKINARRAY(IX,IY,IZ,ISYS)
+  17    CONTINUE
+        WRITE(17)  TIME,SYSMASS,SYSLOADS,FLXMB,FLYMB
+        NXPRTMB=NXPRTMB+IPRNTMBSECS
+        INITMB=1
+       ENDIF
+      ENDIF
+
+C        SET UP -AVECT- ARRAYS FOR TIME = 0.0 (TZERO)
+      CALL RCAEXP1
+
+C        PRINT INITIAL CONDITIONS
+      CALL RCA09
+      IDISK = 3 
+
+C        BEGINNING OF FULL INTEGRATION TIMESTEP LOOP 
+   30 CONTINUE
+
+C        GET TOTAL MASS PER SYSTEM IF MASS/FLUX BALANCES REQUESTED
+      IF(MASSBAL.EQ.1 .AND. ITIMESECS.EQ.NXPRTMB) THEN
+       DO 35 ISYS=1,NOSYS
+        SYSMASS(ISYS)=0.0
+        DO 35 IZ=1,NZ
+         DO 35 IY=1,NY
+          DO 35 IX=1,NX
+           IF(FSM(IX,IY).EQ.1.)  SYSMASS(ISYS) = SYSMASS(ISYS) +
+     .                           BVOL(IX,IY,IZ)*CARAY(IX,IY,IZ,ISYS)
+  35   CONTINUE
+       DO 40 ISYS=1,NOKINSYS
+        SYSMASS(NOSYS+ISYS)=0.0
+        DO 40 IZ=1,NZ
+         DO 40 IY=1,NY
+          DO 40 IX=1,NX
+           IF(FSM(IX,IY).EQ.1.)
+     .                SYSMASS(NOSYS+ISYS) = SYSMASS(NOSYS+ISYS) +
+     .                BVOL(IX,IY,IZ)*CKINARRAY(IX,IY,IZ,ISYS)
+  40   CONTINUE
+      ENDIF
+
+C        IF PIECEWISE LINEAR BOUNDARY CONDITIONS THEN
+C           GET CONCENTRATIONS AT CURRENT TIME LEVEL
+
+      IF(IBCPWLOPT.EQ.1)   THEN
+c$doacross local(isys,deltbc,iz,iy,ix,i)
+        DO 50 ISYS=1,NOSYS
+          IF(NOBC(ISYS).EQ.0)  GO TO 50
+          DELTBC = TIME - NXBCT
+          DO 45 I=1,NOBC(ISYS)
+            IX=IBC(1,I,ISYS)
+            IY=IBC(2,I,ISYS)
+            IZ=IBC(3,I,ISYS)
+            CARAY(IX,IY,IZ,ISYS) = DELTBC*SBC(I,ISYS) + BBC(I,ISYS)
+   45     CONTINUE
+   50  CONTINUE
+      ENDIF
+
+C        EVALUATE KINETIC DERIVATIVES
+      IF (DTWQ.EQ.0.0.OR.ITIMESECS.GE.ITIMEWQSECS) THEN
+        CALL TUNER
+        IDISK = 0
+        ITIMEWQSECS=ITIMEWQSECS+IDTWQSECS
+        TIMEWQ=ITIMEWQSECS/86400.
+      ENDIF
+      INITB = 1
+
+
+C
+C             BEGIN INTEGRATION STEP
+C
+C        COMPUTE VOLUMES AT TIME LEVEL 'N+1'
+
+c$doacross local(iz,iy,ix,is,ie)
+ 100  DO 110 IZ=1,NZ
+        DO 110 IY=1,NY
+          IS = IXS(IY)
+          IE = IXE(IY)
+          IF(IS.EQ.0)   GO TO 110
+          DO 109 IX=IS,IE
+            BVOLN(IX,IY,IZ) = BVOL(IX,IY,IZ) + DT*VDER(IX,IY,IZ)
+ 109      CONTINUE
+ 110  CONTINUE
+
+      DO 400 ISYS=1,NOSYS 
+
+C        CHECK FOR SYSTEM BYPASS
+
+      IF(SYSBY(ISYS).EQ.1)   GO TO 400
+
+      INEGS=0
+      TOTMAS=0.0
+ 
+C  CALCULATE CHANGE IN MASS DUE TO ADVECTIVE TRANSPORT
+C     AND HORIZONTAL MIXING
+ 
+      IF (NZ.GT.1) THEN
+C      SURFACE LAYER
+c$doacross local(iy,ix,is,ie)
+        DO 120 IY=1,NY
+          IS = IXS(IY)
+          IE = IXE(IY)
+          IF(IS.EQ.0)   GO TO 120
+          DO 119 IX=IS,IE
+            IF(FSM(IX,IY).LE.0.)  GO TO 119
+            DM(IX,IY,1) = - DIAG(IX,IY,1)*CARAY(IX,IY,1,ISYS)
+     .        + AVECT(IX,IY,1,1)*CARAY(IX-1,IY,1,ISYS)
+     .         + AVECT(IX,IY,1,2)*CARAY(IX+1,IY,1,ISYS)
+     .          + AVECT(IX,IY,1,3)*CARAY(IX,IY-1,1,ISYS)
+     .           + AVECT(IX,IY,1,4)*CARAY(IX,IY+1,1,ISYS)
+     .            + AVECT(IX,IY,1,6)*CARAY(IX,IY,2,ISYS)    
+  119     CONTINUE
+  120   CONTINUE
+C      LAYERS 2 TO NZ-1
+c$doacross local(iy,ix,iz,is,ie)
+        DO 125 IZ=2,NZ-1
+          DO 125 IY=1,NY
+            IS = IXS(IY)
+            IE = IXE(IY)
+            IF(IS.EQ.0)   GO TO 125
+            DO 123 IX=IS,IE
+              IF(FSM(IX,IY).LE.0.)  GO TO 123
+              DM(IX,IY,IZ) = - DIAG(IX,IY,IZ)*CARAY(IX,IY,IZ,ISYS)
+     .         + AVECT(IX,IY,IZ,1)*CARAY(IX-1,IY,IZ,ISYS)
+     .          + AVECT(IX,IY,IZ,2)*CARAY(IX+1,IY,IZ,ISYS)
+     .           + AVECT(IX,IY,IZ,3)*CARAY(IX,IY-1,IZ,ISYS)
+     .            + AVECT(IX,IY,IZ,4)*CARAY(IX,IY+1,IZ,ISYS)
+     .             + AVECT(IX,IY,IZ,5)*CARAY(IX,IY,IZ-1,ISYS)
+     .              + AVECT(IX,IY,IZ,6)*CARAY(IX,IY,IZ+1,ISYS)
+  123     CONTINUE
+  125   CONTINUE
+C      BOTTOM LAYER
+c$doacross local(iy,ix,is,ie)
+        DO 130 IY=1,NY
+          IS = IXS(IY)
+          IE = IXE(IY)
+          IF(IS.EQ.0)   GO TO 130
+          DO 129 IX=IS,IE
+            IF(FSM(IX,IY).LE.0.)  GO TO 129
+            DM(IX,IY,NZ) =
+     .        - DIAG(IX,IY,NZ)*CARAY(IX,IY,NZ,ISYS)
+     .         + AVECT(IX,IY,NZ,1)*CARAY(IX-1,IY,NZ,ISYS)
+     .          + AVECT(IX,IY,NZ,2)*CARAY(IX+1,IY,NZ,ISYS)
+     .           + AVECT(IX,IY,NZ,3)*CARAY(IX,IY-1,NZ,ISYS)
+     .            + AVECT(IX,IY,NZ,4)*CARAY(IX,IY+1,NZ,ISYS)
+     .             + AVECT(IX,IY,NZ,5)*CARAY(IX,IY,NZ-1,ISYS)  
+  129     CONTINUE
+  130   CONTINUE
+
+      ELSE
+
+        IZ=1
+c$doacross local(iy,ix,is,ie)
+        DO 132 IY=1,NY
+          IS = IXS(IY)
+          IE = IXE(IY)
+          IF(IS.EQ.0)   GO TO 132
+          DO 131 IX=IS,IE
+            IF(FSM(IX,IY).LE.0.)  GO TO 131
+            DM(IX,IY,IZ) = - DIAG(IX,IY,IZ)*CARAY(IX,IY,IZ,ISYS)
+     .       + AVECT(IX,IY,IZ,1)*CARAY(IX-1,IY,IZ,ISYS)
+     .        + AVECT(IX,IY,IZ,2)*CARAY(IX+1,IY,IZ,ISYS)
+     .         + AVECT(IX,IY,IZ,3)*CARAY(IX,IY-1,IZ,ISYS)
+     .          + AVECT(IX,IY,IZ,4)*CARAY(IX,IY+1,IZ,ISYS)
+  131     CONTINUE
+  132   CONTINUE
+
+      ENDIF
+ 
+C        ADD SOURCES/SINKS DUE TO KINETICS
+c$doacross local(iy,ix,iz,is,ie)
+      DO 140 IZ=1,NZ
+       DO 140 IY=1,NY
+        IS = IXS(IY)
+        IE = IXE(IY)
+        IF(IS.EQ.0)   GO TO 140
+        DO 139 IX=IS,IE
+         DM(IX,IY,IZ) = DM(IX,IY,IZ) + CDARAY(IX,IY,IZ,ISYS)
+  139   CONTINUE
+  140 CONTINUE
+
+C        SET MASS BALANCE FLAG FOR LOADS
+       IMBWK=0
+       IF(MASSBAL.EQ.1 .AND. ITIMESECS.GE.ISMBSECS) THEN
+        IF(IMBDOPT.EQ.0) THEN
+         IF(ITIMESECS.EQ.NXPRTMB) IMBWK=1
+         DTMB=1.
+        ELSE
+         IMBWK=1
+         DTMB=DT
+        ENDIF
+       ENDIF
+
+C        ADD LOADS
+      IF(NOPS(ISYS).GT.0)  THEN
+       DELTPS = TIME - NXPST
+       DO 145 I=1,NOPS(ISYS) 
+        WK = DELTPS*SPS(I,ISYS) + BPS(I,ISYS)
+        IF(IMBWK.EQ.1)  SYSLOADS(1,ISYS) = SYSLOADS(1,ISYS)+DTMB*WK
+        IX = IPS(1,I,ISYS)
+        IY = IPS(2,I,ISYS)
+        IWK = IPS(3,I,ISYS)
+        DO IZ=1,NZ
+         DM(IX,IY,IZ) = DM(IX,IY,IZ) + ZFRACPS(IZ,IWK)*WK
+        ENDDO
+  145  CONTINUE
+      ENDIF
+      IF(NONPS(ISYS).GT.0)   THEN
+       DELTNPS = TIME - NXNPST
+       DO 150 I=1,NONPS(ISYS)
+        WK = DELTNPS*SNPS(I,ISYS) + BNPS(I,ISYS)
+        IF(IMBWK.EQ.1)  SYSLOADS(2,ISYS) = SYSLOADS(2,ISYS)+DTMB*WK
+        IX = INPS(1,I,ISYS)
+        IY = INPS(2,I,ISYS)
+        IWK = INPS(3,I,ISYS)
+        DO IZ=1,NZ
+         DM(IX,IY,IZ) = DM(IX,IY,IZ) + ZFRACNPS(IZ,IWK)*WK
+        ENDDO
+  150  CONTINUE
+      ENDIF
+      IF(NOFL(ISYS).GT.0)   THEN
+       DELTFL = TIME - NXFLT
+       DO 155 I=1,NOFL(ISYS)
+        WK = DELTFL*SFL(I,ISYS) + BFL(I,ISYS)
+        IF(IMBWK.EQ.1)  SYSLOADS(3,ISYS) = SYSLOADS(3,ISYS)+DTMB*WK
+        IX = IFL(1,I,ISYS)
+        IY = IFL(2,I,ISYS)
+        IWK = IFL(3,I,ISYS)
+        DO IZ=1,NZ
+         DM(IX,IY,IZ) = DM(IX,IY,IZ) + ZFRACFL(IZ,IWK)*WK
+        ENDDO
+  155  CONTINUE
+      ENDIF
+      IF(NOATM(ISYS).GT.0)   THEN
+       DELTATM = TIME - NXATMT
+       DO 160 IY=1,NY
+        IS = IXS(IY)
+        IE = IXE(IY)
+        IF(IS.EQ.0)   GO TO 160
+        DO 157 IX=IS,IE
+         IF(FSM(IX,IY).LE.0.)  GO TO 157
+         DM(IX,IY,1) = DM(IX,IY,1) + (DELTATM*SATM(IX,IY,ISYS)
+     .               + BATM(IX,IY,ISYS))*XAZ(IX,IY)
+         IF(IMBWK.EQ.1)  SYSLOADS(4,ISYS) = SYSLOADS(4,ISYS) +
+     .       DTMB*(DELTATM*SATM(IX,IY,ISYS)+BATM(IX,IY,ISYS))*XAZ(IX,IY)
+  157   CONTINUE
+  160  CONTINUE
+      ENDIF
+
+C  CALCULATE CONCENTRATIONS: KINETICS, LOADS 
+c$doacross local(iy,ix,iz,is,ie)
+      DO 165 IZ=1,NZ
+        DO 165 IY=1,NY
+          IS = IXS(IY)
+          IE = IXE(IY)
+          IF(IS.EQ.0)   GO TO 165
+          DO 163 IX=IS,IE
+            IF(FSM(IX,IY).LE.0.)  GO TO 163
+              CONCS(IX,IY,IZ) = (BVOL(IX,IY,IZ)*CARAY(IX,IY,IZ,ISYS)
+     .                           + DT*DM(IX,IY,IZ))/BVOLN(IX,IY,IZ)
+ 163      CONTINUE
+ 165  CONTINUE
+
+C  BOUNDARY ELEMENTS ARE UNCHANGED
+      DO 170 I=1,NOBCALL
+        IX=IBCALL(1,I)
+        IY=IBCALL(2,I)
+        IZ=IBCALL(3,I)
+        CONCS(IX,IY,IZ)=CARAY(IX,IY,IZ,ISYS)
+ 170  CONTINUE
+
+C        CHECK FOR MASS/FLUX BALANCE COMPUTATIONS
+      IF(MASSBAL.EQ.0) GO TO 180
+C        INSTANTANEOUS OR AVERAGED
+      IF(IMBDOPT.EQ.0 .AND. NXPRTMB.NE.ITIMESECS) GO TO 180
+      IF(ITIMESECS.LT.ISMBSECS) GO TO 180
+      DO 175 IZ=1,NZ
+       DO 175 IY=1,NY
+        DO 175 IX=1,NX
+         IF(FSM(IX,IY).NE.1.) GO TO 175
+         FLXMB(IX,IY,IZ,ISYS) = FLXMB(IX,IY,IZ,ISYS) + DTMB*
+     .        (AMAX1(0.,QX(IX,IY,IZ)*CARAY(IX-1,IY,IZ,ISYS))
+     .        +AMIN1(0.,QX(IX,IY,IZ)*CARAY(IX,IY,IZ,ISYS))
+     .        +RX(IX,IY,IZ)*
+     .           (CARAY(IX-1,IY,IZ,ISYS)-CARAY(IX,IY,IZ,ISYS)))
+         FLYMB(IX,IY,IZ,ISYS) = FLYMB(IX,IY,IZ,ISYS) + DTMB*
+     .        (AMAX1(0.,QY(IX,IY,IZ)*CARAY(IX,IY-1,IZ,ISYS))
+     .        +AMIN1(0.,QY(IX,IY,IZ)*CARAY(IX,IY,IZ,ISYS))
+     .        +RY(IX,IY,IZ)*
+     .           (CARAY(IX,IY-1,IZ,ISYS)-CARAY(IX,IY,IZ,ISYS)))
+  175 CONTINUE 
+
+C  COMPLETE REST OF INTEGRATION STEP
+C        IMPLICIT VERTICAL DIFFUSION STEP  (IF NZ > 1)
+
+  180 IF (NZ.EQ.1)  GO TO 380
+ 
+c$doacross local(iy,ix,iz,is,ie)
+      DO 340 IZ=1,NZ
+       DO 340 IY=1,NY
+        IS = IXS(IY)
+        IE = IXE(IY)
+        IF(IS.EQ.0)   GO TO 340
+        DO 339 IX=IS,IE
+          MF(IX,IY,IZ) = CONCS(IX,IY,IZ)*BVOLN(IX,IY,IZ)
+ 339    CONTINUE
+ 340  CONTINUE
+
+C        SET UP DIAGONAL AND OFF-DIAGONAL ELEMENTS
+
+c$doacross local(iy,ix,iz,is,ie)
+      DO 350 IY=1,NY
+       IS = IXS(IY)
+       IE = IXE(IY)
+       IF(IS.EQ.0)   GO TO 350
+       DO 349 IX=IS,IE
+        IF(FSM(IX,IY).LE.0.)  GO TO 349
+        AL(IX,IY,1) = 0.
+        AD(IX,IY,1) = BVOLN(IX,IY,1) + DT*RZ(IX,IY,2)
+        AU(IX,IY,1) = -DT*RZ(IX,IY,2)
+        DO 345 IZ=2,NZ-1
+         AL(IX,IY,IZ) = -DT*RZ(IX,IY,IZ)
+         AD(IX,IY,IZ) = BVOLN(IX,IY,IZ) +
+     .                     DT*(RZ(IX,IY,IZ) + RZ(IX,IY,IZ+1))
+         AU(IX,IY,IZ) = -DT*RZ(IX,IY,IZ+1)
+  345   CONTINUE
+        AL(IX,IY,NZ) = -DT*RZ(IX,IY,NZ)
+        AD(IX,IY,NZ) = BVOLN(IX,IY,NZ) + DT*RZ(IX,IY,NZ)
+        AU(IX,IY,NZ) = 0.0
+  349  CONTINUE
+  350 CONTINUE
+
+C        FORWARD SWEEP OF TRIDIAGONAL SCHEME
+
+c$doacross local(iy,ix,iz,is,ie)
+      DO 360 IY=1,NY
+       IS = IXS(IY)
+       IE = IXE(IY)
+       IF(IS.EQ.0)   GO TO 360
+       DO 359 IX=IS,IE
+        IF(FSM(IX,IY).LE.0.)  GO TO 359
+        BETA(IX,IY,1) = AD(IX,IY,1)
+        GAMMA(IX,IY,1) = MF(IX,IY,1)/BETA(IX,IY,1)
+        DO 355 IZ=2,NZ
+         BETA(IX,IY,IZ) = AD(IX,IY,IZ)
+     .               - AL(IX,IY,IZ)*AU(IX,IY,IZ-1)/BETA(IX,IY,IZ-1)
+         GAMMA(IX,IY,IZ) = (MF(IX,IY,IZ)
+     .               - AL(IX,IY,IZ)*GAMMA(IX,IY,IZ-1))/BETA(IX,IY,IZ)
+  355   CONTINUE
+  359  CONTINUE
+  360 CONTINUE
+
+C        BACKWARD SWEEP FOR SOLUTION
+
+c$doacross local(iy,ix,iz,is,ie,ilyr)
+      DO 370 IY=1,NY
+       IS = IXS(IY)
+       IE = IXE(IY)
+       IF(IS.EQ.0)   GO TO 370
+       DO 369 IX=IS,IE
+        IF(FSM(IX,IY).LE.0.)  GO TO 369
+        CONCS(IX,IY,NZ) = GAMMA(IX,IY,NZ)
+        DO 365 ILYR=2,NZ
+         IZ = NZ+1-ILYR
+         CONCS(IX,IY,IZ) = GAMMA(IX,IY,IZ)
+     .           - AU(IX,IY,IZ)*CONCS(IX,IY,IZ+1)/BETA(IX,IY,IZ)
+  365   CONTINUE
+  369  CONTINUE
+  370 CONTINUE
+
+C  BOUNDARY ELEMENTS ARE UNCHANGED
+
+      DO 375 I=1,NOBCALL
+        IX=IBCALL(1,I)
+        IY=IBCALL(2,I)
+        IZ=IBCALL(3,I)
+        CONCS(IX,IY,IZ)=CARAY(IX,IY,IZ,ISYS)
+  375 CONTINUE
+ 
+
+  380 CONTINUE
+
+C        CHECK TO SEE IF NEGATIVE SOLUTIONS PERMITTED 
+ 
+c$doacross local(iy,ix,iz,is,ie,inegs,totmas) ,share(negseg)
+      DO 390 IZ=1,NZ
+        DO 390 IY=1,NY
+          IS = IXS(IY)
+          IE = IXE(IY)
+          IF(IS.EQ.0)   GO TO 390
+          DO 389 IX=IS,IE
+            IF(FSM(IX,IY).LE.0.)  GO TO 389
+            IF (NEGSLN.EQ.1)   THEN
+              CARAY(IX,IY,IZ,ISYS) = CONCS(IX,IY,IZ)
+
+            ELSE
+ 
+C        IF NOT ... CHECK TO MAKE SURE SOLUTION IS NOT
+C                   FORCED THRU ZERO (1.0E-38)
+ 
+              IF(CONCS(IX,IY,IZ).GE.CMIN(ISYS)) THEN
+                CARAY(IX,IY,IZ,ISYS) = CONCS(IX,IY,IZ)
+              ELSE
+C          PREVENT NEG SOLN BY QUARTERING PRESENT CONC AND PRINT WARNING
+                CARAY(IX,IY,IZ,ISYS) = 
+     .                   MAX(CARAY(IX,IY,IZ,ISYS)/4.,CMIN(ISYS))
+C$              call m_lock
+                INEGS = INEGS+1
+                IF(INEGS.LE.99)  THEN
+                  NEGSEG(INEGS,1) = IX
+                  NEGSEG(INEGS,2) = IY
+                  NEGSEG(INEGS,3) = IZ
+                ENDIF
+                TOTMAS = TOTMAS + BVOLN(IX,IY,IZ)*
+     .                   (CARAY(IX,IY,IZ,ISYS)-CONCS(IX,IY,IZ))
+                ADDMASS(IX,IY,IZ,ISYS) = ADDMASS(IX,IY,IZ,ISYS) +
+     .           BVOLN(IX,IY,IZ)*(CARAY(IX,IY,IZ,ISYS)-CONCS(IX,IY,IZ))
+                IWRTADDM=1
+C$              call m_unlock
+              ENDIF
+            ENDIF
+  389     CONTINUE
+  390 CONTINUE
+
+      IF(IADDMDEBUG.EQ.1) THEN
+       IF(INEGS.GT.0)  THEN
+C$              call mp_setlock
+        CALL RCAMESS(2,0.001*TOTMAS)
+        WRITE(OUT,1000)  ((NEGSEG(I,J),J=1,3),I=1,MIN(INEGS,99))
+ 1000   FORMAT(30X,12I5)
+C$              call mp_unsetlock
+       ENDIF
+      ENDIF
+
+  400 CONTINUE
+ 
+C        SEE IF MASS HAS BEEN ADDED TO THE SYSTEM
+      IF(IWRTADDM.EQ.1) THEN 
+        OPEN(19,FILE='RCAFADDM',FORM='UNFORMATTED',STATUS='REPLACE')
+        WRITE(19)  ADDMASS
+        CLOSE(19)
+        IWRTADDM=0
+      ENDIF
+
+C        FLUX BALANCES FOR MISC KINETIC VARIABLES
+      IF(MASSBAL.EQ.0 .OR. NOKINSYS.EQ.0) GO TO 410
+C        INSTANTANEOUS OR AVERAGED
+      IF(IMBDOPT.EQ.0) THEN 
+       IF(NXPRTMB.NE.ITIMESECS) GO TO 410
+       DO 405 ISYS=1,NOKINSYS
+        DO 405 IZ=1,NZ
+         DO 405 IY=1,NY
+          DO 405 IX=1,NX
+           IF(FSM(IX,IY).NE.1.) GO TO 405
+            FLXMB(IX,IY,IZ,NOSYS+ISYS) = 
+     .         (AMAX1(0.,QX(IX,IY,IZ)*CKINARRAY(IX-1,IY,IZ,ISYS))
+     .         +AMIN1(0.,QX(IX,IY,IZ)*CKINARRAY(IX,IY,IZ,ISYS))
+     .         + RX(IX,IY,IZ)
+     .           *(CKINARRAY(IX-1,IY,IZ,ISYS)-CKINARRAY(IX,IY,IZ,ISYS)))
+            FLYMB(IX,IY,IZ,NOSYS+ISYS) = 
+     .         (AMAX1(0.,QY(IX,IY,IZ)*CKINARRAY(IX,IY-1,IZ,ISYS))
+     .         +AMIN1(0.,QY(IX,IY,IZ)*CKINARRAY(IX,IY,IZ,ISYS))
+     .         + RY(IX,IY,IZ)
+     .           *(CKINARRAY(IX,IY-1,IZ,ISYS)-CKINARRAY(IX,IY,IZ,ISYS)))
+  405  CONTINUE
+      ELSE
+       IF(ITIMESECS.LT.ISMBSECS) GO TO 410
+       DO 407 ISYS=1,NOKINSYS
+        DO 407 IZ=1,NZ
+         DO 407 IY=1,NY
+          DO 407 IX=1,NX
+           IF(FSM(IX,IY).NE.1.) GO TO 407
+            FLXMB(IX,IY,IZ,NOSYS+ISYS) = FLXMB(IX,IY,IZ,NOSYS+ISYS) 
+     .       +DT*(AMAX1(0.,QX(IX,IY,IZ)*CKINARRAY(IX-1,IY,IZ,ISYS))
+     .           +AMIN1(0.,QX(IX,IY,IZ)*CKINARRAY(IX,IY,IZ,ISYS))
+     .           +RX(IX,IY,IZ)
+     .           *(CKINARRAY(IX-1,IY,IZ,ISYS)-CKINARRAY(IX,IY,IZ,ISYS)))
+            FLYMB(IX,IY,IZ,NOSYS+ISYS) = FLYMB(IX,IY,IZ,NOSYS+ISYS) 
+     .       +DT*(AMAX1(0.,QY(IX,IY,IZ)*CKINARRAY(IX,IY-1,IZ,ISYS))
+     .           +AMIN1(0.,QY(IX,IY,IZ)*CKINARRAY(IX,IY,IZ,ISYS))
+     .           +RY(IX,IY,IZ)
+     .           *(CKINARRAY(IX,IY-1,IZ,ISYS)-CKINARRAY(IX,IY,IZ,ISYS)))
+  407  CONTINUE
+      ENDIF 
+
+c$doacross local(iz,iy,ix)
+  410 DO 415 IZ=1,NZ
+       DO 415 IY=1,NY
+        DO 415 IX=1,NX
+         BVOL(IX,IY,IZ)=BVOLN(IX,IY,IZ)
+  415 CONTINUE
+
+C  PREPARE FOR NEXT TIME STEP
+      ITIMESECS = ITIMESECS + IDTSECS
+      TIME = ITIMESECS/86400.
+
+C        CHECK TO SEE IF IT IS TIME TO PRINT RESULTS
+C  FIRST DETAILED DUMPS
+      IF(ITIMESECS.LT.NXPRTD)  GO TO 435
+C  DETAILED PRINT TIME
+C  SET IDISK FOR DETAILED DUMPS
+      IDISK=2
+      NXPRTD = NXPRTD + IPRNTDSECS
+C  SECOND GLOBAL DUMPS
+ 435  IF(ITIMESECS.LT.NXPRTG)  GO TO 450
+C  GLOBAL PRINT TIME
+C  CALL PRINT ROUTINE
+      CALL RCA09
+      IDISK=IDISK+1
+      NXPRTG = NXPRTG + IPRNTGSECS
+
+C  NOW PERFORM STABILITY CHECK
+  
+      DO 445 ISYS=1,NOSYS 
+        IF(SYSBY(ISYS).EQ.1)   GO TO 445
+        CKMAX = CMAX(ISYS)
+
+        DO 440 IZ=1,NZ
+          DO 440 IY=1,NY
+            IS = IXS(IY)
+            IE = IXE(IY)
+            IF(IS.EQ.0)   GO TO 440
+            DO 439 IX=IS,IE
+              IF(FSM(IX,IY).LE.0.)  GO TO 439
+              IF(CARAY(IX,IY,IZ,ISYS).GE.CKMAX)   GO TO 500
+  439       CONTINUE
+  440   CONTINUE
+  445 CONTINUE
+
+C  MASS/FLUX BALANCE DUMPS
+  450 IF(MASSBAL.EQ.0) GO TO 470
+      IF(ITIMESECS.LT.NXPRTMB) GO TO 470
+       IF(IMBDOPT.EQ.0) THEN
+        WRITE(17)  TIME,SYSMASS,SYSLOADS,FLXMB,FLYMB
+       ELSE
+        TIMEAVE=FLOAT(IPRNTMBSECS)/86400.
+        DO 455 ISYS=1,NOSYS+NOKINSYS
+         DO 455 IZ=1,NZ
+          DO 455 IY=1,NY
+           DO 455 IX=1,NX
+            FLXMB(IX,IY,IZ,ISYS)=FLXMB(IX,IY,IZ,ISYS)/TIMEAVE
+            FLYMB(IX,IY,IZ,ISYS)=FLYMB(IX,IY,IZ,ISYS)/TIMEAVE
+  455   CONTINUE
+        DO ISYS=1,NOSYS
+         DO I=1,4
+          SYSLOADS(I,ISYS)=SYSLOADS(I,ISYS)/TIMEAVE
+         ENDDO
+        ENDDO
+        WRITE(17)  TIME,SYSMASS,SYSLOADS,FLXMB,FLYMB
+       ENDIF
+C        RESET ARRAYS AND COUNTER
+      DO 460 ISYS=1,NOSYS
+       DO 460 I=1,4
+        SYSLOADS(I,ISYS)=0.
+  460 CONTINUE
+      DO 465 ISYS=1,NOSYS+NOKINSYS
+       DO 465 IZ=1,NZ
+        DO 465 IY=1,NY
+         DO 465 IX=1,NX
+          FLXMB(IX,IY,IZ,ISYS)=0.0
+          FLYMB(IX,IY,IZ,ISYS)=0.0
+  465 CONTINUE
+      NXPRTMB = NXPRTMB + IPRNTMBSECS
+      IF(NXPRTMB.GT.IEMBSECS) MASSBAL=0
+
+C        CHECK TO SEE IF NECESSARY TO UPDATE TIME-VARIABLE FUNCTIONS
+C        FIRST POINT SOURCE LOADS 
+  470 IF(IPSOPT.GT.1.AND.TIME.GE.NXPST)   
+     .   CALL RCA10(SPS,BPS,MXWK,NOPS,NXPST,33,IPSPWLOPT,SCALPS)
+C        NONPOINT SOURCE LOADS 
+      IF(INPSOPT.GT.1.AND.TIME.GE.NXNPST)   
+     .   CALL RCA10(SNPS,BNPS,MXWK,NONPS,NXNPST,34,INPSPWLOPT,SCALNPS)
+C        FALL-LINE LOADS 
+      IF(IFLOPT.GT.1.AND.TIME.GE.NXFLT)   
+     .   CALL RCA10(SFL,BFL,MXWK,NOFL,NXFLT,35,IFLPWLOPT,SCALFL)
+C        ATMOSPHERIC LOADS 
+      IF(IATMOPT.GT.1.AND.TIME.GE.NXATMT)   
+     .   CALL RCA10(SATM,BATM,NX*NY,NOATM,NXATMT,36,IATMPWLOPT,
+     .              SCALATM)
+C        NEXT BOUNDARY CONDITIONS 
+      IF(IBCOPT.GT.1.AND.TIME.GE.NXBCT) CALL RCA11 
+C        NEXT TRANSPORT FIELDS
+C     IF(ITIMESECS.GE.HYDBRK(ITIMHYD))  THEN
+      IF(ITIMESECS.EQ.NXHYDTSECS)  THEN
+         CALL RCA03A
+         CALL RCAEXP1
+C        ITIMHYD = ITIMHYD+1
+      ENDIF
+
+C        CHECK FOR END OF SIMULATION...
+C           IF NOT GO BACK AND TAKE NEXT INTEGRATION STEP
+
+      IF(TIME.LE.TEND)   GO TO 30 
+
+      ITRAK = ITRAK+1 
+      IF(ITRAK.LE.NSTEP)  THEN
+         IDTSECS=ISTEP(ITRAK)
+         DT=ISTEP(ITRAK)/86400.
+         TEND = TBRK(ITRAK) 
+         IF(DT.EQ.0.0)   THEN
+            CALL RCAMESS(3,DT)
+            IDISK=1
+            INITB=2
+            CALL TUNER
+            CALL EXIT
+         ENDIF
+      ELSE
+         TEND = 0.0
+      ENDIF 
+
+      IF(TEND.GT.0.)   GO TO 30 
+
+C        FINISHED...
+      WRITE(OUT,8000)
+ 8000 FORMAT(///30X,'RCAEXP FINISHED INTEGRATION'/
+     .          30X,'USER DUMPS TO FOLLOW'//)
+      IF(MASSBAL.EQ.1) THEN
+        DEALLOCATE(FLXMB)
+        DEALLOCATE(FLYMB)
+      ENDIF
+      RETURN
+
+C         STABILITY CRITERIA VIOLATED...ABEND 
+
+  500 CALL RCAMESS(1,CKMAX) 
+      WRITE(OUT,9000)  BVOLN(IX,IY,IZ),DIAG(IX,IY,IZ)
+ 9000 FORMAT(10X,'VOLUME =',E13.4,'  ,DIAGONAL =',E13.4)
+      IREC = IREC+1 
+      IDISK = 1 
+      INITB = 2
+      CALL TUNER
+      RETURN
+      END 
+

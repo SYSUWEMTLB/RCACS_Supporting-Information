@@ -1,0 +1,233 @@
+C
+C            REAL, INTEGER AND COMMON CARDS FOR HQI SEDIMENT MODEL
+C                                                (RCA VERSION 3.0)
+C
+            REAL      
+     .      CSDIC(NX,NY)     ,CDSDIC(NX,NY)
+     .    , CSTALK(NX,NY)    ,CDSTALK(NX,NY)
+C     .    , FLXDIC(NX,NY)    ,FLXTALK(NX,NY)
+C LB 20171013
+	  REAL      CPOP(NX,NY,3)    ,FLXPOP(NX,NY,3)
+     .         ,CPON(NX,NY,3)    ,FLXPON(NX,NY,3)
+     .         ,CPOC(NX,NY,3)    ,FLXPOC(NX,NY,3)
+     .         ,CPOS(NX,NY)      ,FLXPOS(NX,NY)
+     .         ,FLXPO4T2S(NX,NY) ,FLXSIT2S(NX,NY)
+     .         ,CTEMP(NX,NY)     ,CDTEMP(NX,NY)
+     .         ,BSVOL(NX,NY)     ,HSED(NX,NY)
+     .         ,CCH4(NX,NY)      ,CSO4(NX,NY)
+      REAL      VSED(NX,NY)      ,VPMIX(NX,NY)
+     .         ,VDMIX(NX,NY)     ,M1(NX,NY)
+     .         ,M2(NX,NY)
+     .         ,JDIAGP(NX,NY)    ,JDIAGN(NX,NY)
+     .         ,JDIAGC(NX,NY)    ,JDIAGS(NX,NY)
+      REAL      PPFWS(NX,NY)     ,PNFWS(NX,NY)
+     .         ,PCFWS(NX,NY)     ,PSFWS(NX,NY)
+     .         ,SSFWS(NX,NY)
+      REAL      PIE1SI(NX,NY)    ,PIE2SI(NX,NY)
+     .         ,PIE1PO4M(NX,NY)  ,PIE1PO4N(NX,NY)
+      REAL      FRPPH1(3),     FRPPH2(3),    FRPPH3(3),    FRPOP(3),
+     .          FRNPH1(3),     FRNPH2(3),    FRNPH3(3),    FRPON(3),
+     .          FRCPH1(3),     FRCPH2(3),    FRCPH3(3),    FRPOC(3)
+      COMMON /SED1C/  CPOP,   FLXPOP, CPON,   FLXPON, CPOC,   FLXPOC,
+     .                CPOS,   FLXPOS, CTEMP,  CDTEMP, BSVOL,
+     .                HSED,   VSED,   VPMIX,  VDMIX,  
+     .                JDIAGP, JDIAGN, JDIAGC, JDIAGS, RESTART_IN,
+     .                CCH4,   CSO4  , FLXPO4T2S     , FLXPO4T2,
+     .                FLXSIT2S      , FLXSIT2
+      COMMON /SED2C/  FRPPH1, FRPPH2, FRPPH3, FRPOP,  FRNPH1, FRNPH2,
+     .                FRNPH3, FRPON,  FRCPH1, FRCPH2, FRCPH3, FRPOC
+      COMMON /BENPLC/ PPFWS,  PNFWS,  PCFWS,  PSFWS,  SSFWS
+      COMMON /VARM/   M1, M2
+      COMMON /VARPI/  PIE1SI, PIE2SI, PIE1PO4M, PIE1PO4N
+c______________________________________________________________________
+c- Input parameters
+      real
+     *     m1g,m2g,Dp,w2,Dd,thtaDp,thtaDd,
+     *     Dd0,thtaDd0,
+     *     kappnh4f,kappnh4s,pienh4,thtanh4,kmnh4,thtakmnh4,kmnh4o2,
+     *     kapp1no3f,kapp1no3s,k2no3f,k2no3s,thtano3,
+     *     kappd1,kappp1,pie1s,pie2s,thtapd1,kmhso2,
+     *     ksi,csisat,pie1sig,pie2sig,h20,thtasi,kmpsi,o2critsi,jsidetr,
+     *     pie1po4mg,pie1po4ng,o2crit,kmo2Dp,tempbnth,
+     *     kbnthstr,klbnth,Dpmin,
+     *     kappch4,thtach4,
+     *     kmch4o2,kmso4,
+     *     kpdiag,dpthta,kndiag,dnthta,kcdiag,dcthta,
+     *     thtanh4s,thtanh4f,thtano3s,thtano3f
+      common /input/
+     *     m1g,m2g,Dp,w2,Dd,thtaDp,thtaDd,
+     *     Dd0,thtaDd0,
+     *     kappnh4f,kappnh4s,pienh4,thtanh4,kmnh4,thtakmnh4,kmnh4o2,
+     *     kapp1no3f,kapp1no3s,k2no3f,k2no3s,thtano3,
+     *     kappd1,kappp1,pie1s,pie2s,thtapd1,kmhso2,
+     *     ksi,csisat,pie1sig,pie2sig,h20,thtasi,kmpsi,
+     *     o2critsi,jsidetr,
+     *     pie1po4mg,pie1po4ng,o2crit,kmo2Dp,tempbnth,
+     *     kbnthstr,klbnth,Dpmin,
+     *     kappch4,thtach4,
+     *     kmch4o2,kmso4,
+     *     kpdiag(3),dpthta(3),
+     *     kndiag(3),dnthta(3),
+     *     kcdiag(3),dcthta(3),
+     *     thtanh4s,thtanh4f,thtano3s,thtano3f
+c______________________________________________________________________
+c- concentrations
+      real
+     *  pon1tm1s,pon2tm1s,pon3tm1s,
+     *  poc1tm1s,poc2tm1s,poc3tm1s,
+     *  pop1tm1s,pop2tm1s,pop3tm1s,
+     *  psitm1s,bnthstr1s,bformaxs
+      common /sedpom/
+     *  pon1tm1s(NX,NY),pon2tm1s(NX,NY),pon3tm1s(NX,NY),
+     *  poc1tm1s(NX,NY),poc2tm1s(NX,NY),poc3tm1s(NX,NY),
+     *  pop1tm1s(NX,NY),pop2tm1s(NX,NY),pop3tm1s(NX,NY),
+     *  psitm1s(NX,NY),bnthstr1s(NX,NY),bformaxs(NX,NY),
+     *  iswbnths(NX,NY)
+
+      real
+     *    nh41tm1s,nh4t1tm1s,nh4t2tm1s,
+     *    no31tm1s,no3t1tm1s,no3t2tm1s,
+     *    hs1tm1s,hst1tm1s,hst2tm1s,
+     *    si1tm1s,sit1tm1s,sit2tm1s,
+     *    po41tm1s,po4t1tm1s,po4t2tm1s,
+     *    ch4t1tm1s,ch41tm1s,ch4t2tm1s,
+     *    so41tm1s,so4t2tm1s
+
+      common /sedconc/
+     *    nh41tm1s(NX,NY),nh4t1tm1s(NX,NY),nh4t2tm1s(NX,NY),
+     *    no31tm1s(NX,NY),no3t1tm1s(NX,NY),no3t2tm1s(NX,NY),
+     *    hs1tm1s(NX,NY),hst1tm1s(NX,NY),hst2tm1s(NX,NY),
+     *    si1tm1s(NX,NY),sit1tm1s(NX,NY),sit2tm1s(NX,NY),
+     *    po41tm1s(NX,NY),po4t1tm1s(NX,NY),po4t2tm1s(NX,NY),
+     *    ch41tm1s(NX,NY),ch4t2tm1s(NX,NY),ch4t1tm1s(NX,NY),
+     *    so41tm1s(NX,NY),so4t2tm1s(NX,NY)
+
+      real
+     *    nh40,nh41,nh42,nh42av,nh4t1,nh4t2,nh4t2av,
+     *    nh41tm1,nh4t1tm1,nh4t2tm1,jnh4,nh4t2sav,
+     *    no30,no31,no32,no32av,no3t1,no3t2,no3t2av,
+     *    no31tm1,no3t1tm1,no3t2tm1,jno3,no3t2sav,
+     *    hs0,hs1,hs2,hs2av,hst1,hst2,hst2av,
+     *    hs1tm1,hst1tm1,hst2tm1,jhs,hst2sav,
+     *    si0,si1,si2,si2av,sit1,sit2,sit2av,
+     *    si1tm1,sit1tm1,sit2tm1,jsi,sit2sav,
+     *    po40,po41,po42,po42av,po4t1,po4t2,po4t2av,
+     *    po41tm1,po4t1tm1,po4t2tm1,jpo4,po4t2sav,
+     *    jch4aq,jch4g,
+     *    ch40,     ch41,      ch42,
+     *    ch42av,   ch4t1,     ch4t2,    ch4t2av,  ch41tm1,
+     *    ch4t2tm1, jch4,      ch4t2sav, jch4gaso2,
+     *    jgas,     so40,      so41,     so42,
+     *    so4t1,    so4t2,     so4t2av,  so40mg,   so41tm1,
+     *    so4t2tm1, jso4,      so4t2sav
+      common /conc/
+     *    nh40,nh41,nh42,nh42av,nh4t1,nh4t2,nh4t2av,
+     *    nh41tm1,nh4t1tm1,nh4t2tm1,jnh4,nh4t2sav,
+     *    no30,no31,no32,no32av,no3t1,no3t2,no3t2av,
+     *    no31tm1,no3t1tm1,no3t2tm1,jno3,no3t2sav,
+     *    hs0,hs1,hs2,hs2av,hst1,hst2,hst2av,
+     *    hs1tm1,hst1tm1,hst2tm1,jhs,hst2sav,
+     *    si0,si1,si2,si2av,sit1,sit2,sit2av,
+     *    si1tm1,sit1tm1,sit2tm1,jsi,sit2sav,
+     *    po40,po41,po42,po42av,po4t1,po4t2,po4t2av,
+     *    po41tm1,po4t1tm1,po4t2tm1,jpo4,po4t2sav,
+     *    jch4aq,jch4g,
+     *    ch40,     ch41,      ch42,
+     *    ch42av,   ch4t1,     ch4t2,    ch4t2av,  ch41tm1,
+     *    ch4t2tm1, jch4,      ch4t2sav, jch4gaso2,
+     *    jgas,     so40,      so41,     so42,
+     *    so4t1,    so4t2,     so4t2av,  so40mg,   so41tm1,
+     *    so4t2tm1, jso4,      so4t2sav
+
+c______________________________________________________________________
+c- diagenesis
+      real
+     *  pon1,pon1tm1,pon2,pon2tm1,pon3,pon3tm1,
+     *  poc1,poc1tm1,poc2,poc2tm1,poc3,poc3tm1,
+     *  pop1,pop1tm1,pop2,pop2tm1,pop3,pop3tm1,
+     *  pon1av,pon2av,pon3av,
+     *  poc1av,poc2av,poc3av,
+     *  pop1av,pop2av,pop3av,
+     *  jnin,xjn,jn,jcin,xjc,jc,jpin,xjp,jp,
+     *  psi,psitm1,psisav,psiav,jsiin,
+     *  xjcno3,xjco2,xjc1,jo2nh4,xjco2av,xjc1av
+      common /diag/
+     *  pon1,pon1tm1,pon2,pon2tm1,pon3,pon3tm1,
+     *  poc1,poc1tm1,poc2,poc2tm1,poc3,poc3tm1,
+     *  pop1,pop1tm1,pop2,pop2tm1,pop3,pop3tm1,
+     *  pon1av,pon2av,pon3av,
+     *  poc1av,poc2av,poc3av,
+     *  pop1av,pop2av,pop3av,
+     *  jnin,xjn,jn,jcin,xjc,jc,jpin,xjp,jp,
+     *  psi,psitm1,psisav,psiav,jsiin,
+     *  xjcno3,xjco2,xjc1,jo2nh4,xjco2av,xjc1av
+c______________________________________________________________________
+c- n layer arguments
+      real
+     *    k0h1d,k0h1p,k1h1d,k1h1p,k2h2d,k2h2p,k3,
+     *    pie1,pie2,j1,j2,kmc1,w12,kl12,tempd,o20,
+     *    ch4sat,sal0
+      common /nlpars/
+     *    k0h1d,k0h1p,k1h1d,k1h1p,k2h2d,k2h2p,k3,
+     *    pie1,pie2,j1,j2,kmc1,w12,kl12,tempd,o20,
+     *    ch4sat,sal0
+c______________________________________________________________________
+c- h1 variables
+      real
+     *    h1,h1dot,h2,h2dot,sodtm1,o20tm1,Dd0tm1,Dd0o20dot,
+     *    sodtm1s,o20tm1s,Dd0tm1s
+      common /h1pars/
+     *    h1,h1dot,h2,h2dot,sodtm1,o20tm1,Dd0tm1,Dd0o20dot,
+     *    sodtm1s(NX,NY),o20tm1s(NX,NY),Dd0tm1s(NX,NY)
+c______________________________________________________________________
+c- time and space parameters
+      common /ts/
+     *     ised,saltsw,deltat,deltatin,nsedlyr,xnsedlyr,deltaz,
+     *     delta
+
+c______________________________________________________________________
+c- sedf storage
+      real
+     *     xappnh4,xkmnh4,xappd1,xappp1,xapp1no3,xk2no3,xDd0,
+     *     xksi,temp20,temp202,xkjsi,
+     *     fd1,fp1,fd2,fp2,sod,csod,s,kl12nom,
+     *     kl12so4,csodhs,csodch4,hso4,ddso4,vjch4g,
+     *     fp1so4,fp2so4,khs_1,dch4t2,dhst2,fluxhs
+      common /store/
+     *     xappnh4,xkmnh4,xappd1,xappp1,xapp1no3,xk2no3,xDd0,
+     *     xksi,temp20,temp202,
+     *     fd1,fp1,fd2,fp2,sod,csod,s,isw12,w12nom,w12decay,w12min,tw12,
+     *     bnthstr,bnthstrs,bnthstr1,id,ibnth,iswbnth,bformax,kl12nom,
+     *     kl12so4,csodhs,csodch4,hso4,ddso4,vjch4,vjch4g,
+     *     fp1so4,fp2so4,khs_1,dch4t2,dhst2,fluxhs
+c_______________________________________________________________________
+c- theta dependency storage
+      common  /thetas/
+     *     zhtaDd0(350),zhtanh4s(350),zhtanh4f(350),zhtakmnh4(350),
+     *     zhtano3s(350),zhtano3f(350),zhta2no3s(350),zhta2no3f(350),
+     *     zhtad1(350),zhtap1(350),zhtasi(350),
+     *     zl12nom(350),zw12nom(350),
+     *     zhtapon1(350),zhtapon2(350),zhtapon3(350),
+     *     zhtapoc1(350),zhtapoc2(350),zhtapoc3(350),
+     *     zhtapop1(350),zhtapop2(350),zhtapop3(350),
+     *     zhtach4(350),zhtajsi(350)
+c_______________________________________________________________________
+c- sediment mass balances
+      real*8
+     .     totorgp,totorgn,totorgc,totbsi
+     .    ,totpo4,totnh4,totno3,totsi,toth2s,totch4,totso4
+     .    ,jpop,jpon,jpoc,jbsi,jpo4ss,jsiss
+     .    ,burialorgp,burialorgn,burialorgc,burialbsi
+     .    ,burialpo4,burialnh4,burialno3,burialsi
+     .    ,burialh2s,burialch4,burialso4
+     .    ,totjpo4,totjnh4,totjno3,totjn2,totjsi
+     .    ,totjh2s,totjch4aq,totjch4g,totsod
+      common  /sedmassbal/
+     .     totorgp,totorgn,totorgc,totbsi
+     .    ,totpo4,totnh4,totno3,totsi,toth2s,totch4,totso4
+     .    ,jpop,jpon,jpoc,jbsi,jpo4ss,jsiss
+     .    ,burialorgp,burialorgn,burialorgc,burialbsi
+     .    ,burialpo4,burialnh4,burialno3,burialsi
+     .    ,burialh2s,burialch4,burialso4
+     .    ,totjpo4,totjnh4,totjno3,totjn2,totjsi
+     .    ,totjh2s,totjch4aq,totjch4g,totsod
